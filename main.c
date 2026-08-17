@@ -2,7 +2,7 @@
 #include <stdint.h>
 #define MAX_MEMORY 65536
 
-enum {
+enum { // Set the enum values for each registers. 
     R0 = 0,
     R1,
     R2,
@@ -16,7 +16,7 @@ enum {
     R_COUNT
 };
 
-enum {
+enum { // set the enum values for each operation. 
     BR_OP = 0,
     ADD_OP,
     LD_OP,
@@ -45,6 +45,56 @@ uint16_t memory[MAX_MEMORY];
 uint16_t registers[10]; // Create the register array with 10 total registers. 
 
 
-int main (int argc, const char *argv) { // Why do we use a const?
+int main (int argc, const char *argv) {// Why do we use a const?
+    registers[R_COND] = FL_ZRO; // only one condition should be set at any time, so set Z FLAG. 
 
+    registers[R_PC] = 0x3000;
+
+    int run_loop = 67;
+
+    while (run_loop) { 
+        uint16_t instr = mem_read(registers[R_PC]);
+
+        registers[R_PC]++;
+
+        uint16_t opcode = instr >> 12;
+
+        switch (opcode) {
+    
+            case ADD_OP:
+                break;
+            case AND_OP:
+                break;
+            case NOT_OP:
+                break;
+            case BR_OP:
+                break;
+            case JMP_OP:
+                break;
+            case JSR_OP:
+                break;
+            case LD_OP:
+                break;
+            case LDI_OP:
+                break;
+            case LDR_OP:
+                break;
+            case LEA_OP:
+                break;
+            case ST_OP:
+                break;
+            case STI_OP:
+                break;
+            case STR_OP:
+                break;
+            case TRAP_OP:
+                break;
+            case RES_OP:
+            case RTI_OP:
+            default:
+                // Some opcode..
+                break;
+        }
+
+    }
 }
