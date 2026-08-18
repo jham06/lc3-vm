@@ -2,28 +2,21 @@
 #include <stdint.h>
 #include <signal.h>
 #include <Windows.h>
-#include <conio.h>  // _kbhit
+#include <conio.h> 
 #define MAX_MEMORY 65536
 
+/*CREDIT: https://www.jmeiners.com/lc3-vm/ */
 
-// Have to rememeber, lc3 machiens are big_endian...
-void update_flag (uint16_t r) { // any time a value is written into the register, need to update flags to indicate its sign. 
-    if (registers[r] == 0) {
-        registers[R_COND] = FL_ZRO;
-    } else if (registers[r] >> 1) { // If 15th bit is set i.e. its negative..
-        registers[R_COND] = FL_NEG;
-    } else {
-        registers[R_COND] = FL_POS;
-    }
-}   
+HANDLE hStdin = INVALID_HANDLE_VALUE;
+DWORD fdwMode, fdwOldMode;
 
-uint16_t mem_read (uint16_t addr){
 
+
+uint16_t check_key()
+{
+    return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
 }
 
-uint16_t mem_write (uint16_t dest, uint16_t value) {
-    memory[dest] = value;
-}
 enum {
     TRAP_GETCHAR = 0x20, // get char from keyboard, not echoed to the terminal
     TRAP_OUT = 0x21, // output a char
@@ -80,8 +73,102 @@ enum
 uint16_t memory[MAX_MEMORY];
 uint16_t registers[10]; // Create the register array with 10 total registers. 
 
+void disable_input_buffering() 
+{
+    hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    GetConsoleMode(hStdin, &fdwOldMode); /* save old mode */
+    fdwMode = fdwOldMode
+            ^ ENABLE_ECHO_INPUT  /* no input echo */
+            ^ ENABLE_LINE_INPUT; /* return when one or
+                                    more characters are available */
+    SetConsoleMode(hStdin, fdwMode); /* set new mode */
+    FlushConsoleInputBuffer(hStdin); /* clear buffer */
+}
 
-int main (int argc, const char *argv) {// Why do we use a const?
+void restore_input_buffering()
+{
+    SetConsoleMode(hStdin, fdwOldMode);
+}
+
+uint16_t check_key()
+{
+    return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
+}
+
+
+void handle_interrupt(int signal)
+{
+    restore_input_buffering();
+    printf("\n");
+    exit(-2);
+}
+
+
+uint16_t swap16_bits(uint16_t value) {
+    uint16_t swapped = (value >> 8) | (value << 8); // no need to mask. 
+    return swapped;
+} 
+
+// Have to rememeber, lc3 machiens are big_endian...
+void update_flag (uint16_t r) { // any time a value is written into the register, need to update flags to indicate its sign. 
+    if (registers[r] == 0) {
+        registers[R_COND] = FL_ZRO;
+    } else if (registers[r] >> 1) { // If 15th bit is set i.e. its negative..
+        registers[R_COND] = FL_NEG;
+    } else {
+        registers[R_COND] = FL_POS;
+    }
+}   
+
+void read_image_file(FILE *file) {
+    uint16_t origin_ptr; // need to set a original pointer in order to set where to store the img. 
+    fread(&origin_ptr, sizeof(uint16_t), 1, file);
+    origin_ptr = swap16_bits(origin_ptr);
+
+    uint16_t *max_ptr = memory + origin_ptr;
+    uint16_t max_read = MAX_MEMORY - origin_ptr;
+    size_t reader = fread(max_ptr, sizeof(uint16_t), max_read, file); // this returns how many elements were read, with max_ptr now starting at the memory + original ptr (which is the after first 2 bytes. )
+
+    // because C is a little endian (first byte on lsb, second byte on msb), need to swap. 
+    while (reader-- > 0) {
+        *max_ptr = swap16_bits(*max_ptr); // simply switch the bits. 
+        max_ptr++;
+    }
+
+}
+
+
+int read_image (const char* image_path) { // needs to read a string, so apply a char* in order to do so
+        FILE *file_ptr = fopen(image_path, "rb");
+        if(file_ptr == 0) {
+            return 0;
+        } 
+        read_image_file(file_ptr);
+        fclose(file_ptr);
+        return 1;
+}
+
+uint16_t mem_read (uint16_t addr){
+    if (addr == MR_KBSR) {
+        if (check_key()) {
+            memory[MR_KBSR] = (1 << 15);
+            memory[MR_KBDR] = getchar();
+        } else {
+            memory[MR_KBSR] = 0;
+        }
+    }
+    return memory[addr];
+}
+
+uint16_t mem_write (uint16_t dest, uint16_t value) {
+    memory[dest] = value;
+
+}
+
+int main (int argc, const char *argv[]) {// Why do we use a const?
+
+    signal(SIGINT, handle_interrupt);
+    disable_input_buffering();
 
     // Need to set a condition as we expect one or more paths to VM images. 
 
@@ -305,4 +392,6 @@ int main (int argc, const char *argv) {// Why do we use a const?
         }
 
     }
+
+    restore_input_buffering();
 }
