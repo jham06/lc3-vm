@@ -1,7 +1,37 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <signal.h>
+#include <Windows.h>
+#include <conio.h>  // _kbhit
 #define MAX_MEMORY 65536
 
+
+// Have to rememeber, lc3 machiens are big_endian...
+void update_flag (uint16_t r) { // any time a value is written into the register, need to update flags to indicate its sign. 
+    if (registers[r] == 0) {
+        registers[R_COND] = FL_ZRO;
+    } else if (registers[r] >> 1) { // If 15th bit is set i.e. its negative..
+        registers[R_COND] = FL_NEG;
+    } else {
+        registers[R_COND] = FL_POS;
+    }
+}   
+
+uint16_t mem_read (uint16_t addr){
+
+}
+
+uint16_t mem_write (uint16_t dest, uint16_t value) {
+    memory[dest] = value;
+}
+enum {
+    TRAP_GETCHAR = 0x20, // get char from keyboard, not echoed to the terminal
+    TRAP_OUT = 0x21, // output a char
+    TRAP_PUTS = 0x22, // output a word str
+    TRAP_INPUT = 0x23, // get char from keyboard, echoed into terminal
+    TRAP_PUTSP = 0x24, // output a byte string
+    TRAP_HALT = 0x25 // halt the program..
+};
 enum { // Set the enum values for each registers. 
     R0 = 0,
     R1,
@@ -39,6 +69,12 @@ enum {
     FL_POS = 1 << 0,
     FL_ZRO = 1 << 1,
     FL_NEG = 1 << 2,
+};
+
+enum
+{
+    MR_KBSR = 0xFE00, /* keyboard status */
+    MR_KBDR = 0xFE02  /* keyboard data */
 };
 
 uint16_t memory[MAX_MEMORY];
@@ -92,6 +128,8 @@ int main (int argc, const char *argv) {// Why do we use a const?
                     imm5 = imm5 >> 11;
                     registers[dr] = imm5 + registers[sr1];
                 }
+
+                update_flag(dr);
                 break;
             case AND_OP: // 0101
                 uint16_t bit5 = (instr >> 5) & 0x0001;
@@ -106,12 +144,14 @@ int main (int argc, const char *argv) {// Why do we use a const?
                     imm5 = imm5 >> 11;
                     registers[dr] = imm5 & registers[sr1];
                 }
+                update_flag(dr);
                 break;
             case NOT_OP: // 1001
                 uint16_t dr = (instr >> 9) & 0x0007; 
                 uint16_t sr = (instr >> 6) & 0x0007;
 
                 registers[dr] = ~(registers[sr]);
+                update_flag(dr);
                 break;
             case BR_OP: // 0000, need to test N, Z and P
                 uint16_t n = (instr >> 11) & 0x0001;
@@ -119,26 +159,143 @@ int main (int argc, const char *argv) {// Why do we use a const?
                 uint16_t p = (instr >> 9) & 0x0001;
 
                  // LETS come back to this.
+
+                
                 break;
             case JMP_OP: // 1100
+                uint16_t base_reg = (instr >> 6) & 0x0003;
+                registers[R_PC] = registers[base_reg];
                 break;
             case JSR_OP: // 0100
+                registers[R7] = registers[R_PC];
+                uint16_t bit11 = (instr >> 11) & 0x0001;
+                uint16_t offset = (instr & 0x07FF);
+                offset = offset << 5;
+                offset = offset >> 5;
+                if (bit11 == 1) {
+                    registers[R_PC] = registers[R_PC] + offset;
+                }
                 break;
             case LD_OP: // 0010
+                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t pc_offset = (instr & 0x01FF);
+                pc_offset = pc_offset << 7;
+                pc_offset = pc_offset >> 7;
+
+                registers[dr] = mem_read(registers[R_PC] + pc_offset); // use mem_read for now..
+                update_flag(dr);
                 break;
             case LDI_OP: // 1010
+                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t pc_offset = (instr & 0x01FF);
+                pc_offset = pc_offset << 7;
+                pc_offset = pc_offset >> 7;
+
+                registers[dr] = mem_read(mem_read(registers[R_PC] + pc_offset)); // In this case, store the address. 
+                update_flag(dr);
                 break;
             case LDR_OP: // 0110
+                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t base_r = (instr >> 6) & 0x0007;
+                uint16_t offset6 = (instr & 0x003F);
+                offset6 = offset6 << 10;
+                offset6 = offset6 >> 10;
+
+                registers[dr] = mem_read(registers[base_r] + offset6); // use mem_read for now..
+                update_flag(dr);
                 break;
             case LEA_OP: // 1110
+                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t pc_offset = (instr & 0x01FF);
+                pc_offset = pc_offset << 7;
+                pc_offset = pc_offset >> 7;
+
+                registers[dr] = (registers[R_PC] + pc_offset); // In this case, store the address. 
+                update_flag(dr);
                 break;
             case ST_OP: // 0011
+                uint16_t sr = (instr >> 9) & 0x0007;
+                uint16_t pc_offset = (instr & 0x01FF);
+                pc_offset = pc_offset << 7;
+                pc_offset = pc_offset >> 7;
+
+                uint16_t value = registers[sr];
+                
+                mem_write(registers[R_PC] + pc_offset, value);
                 break;
             case STI_OP: // 1011
+                uint16_t sr = (instr >> 9) & 0x0007;
+                uint16_t pc_offset = (instr & 0x01FF);
+                pc_offset = pc_offset << 7;
+                pc_offset = pc_offset >> 7;
+
+                uint16_t value = registers[sr];
+                
+                mem_write(mem_read(registers[R_PC] + pc_offset), value);
                 break;
             case STR_OP: // 0111
+                uint16_t sr = (instr >> 9) & 0x0007;
+                uint16_t baseR = (instr >> 6) & 0x0007;
+                uint16_t pc_offset = (instr & 0x003F);
+                pc_offset = pc_offset << 10;
+                pc_offset = pc_offset >> 10;
+
+                uint16_t value = registers[sr];
+                
+                mem_write(registers[baseR] + pc_offset, value);
                 break;
             case TRAP_OP: // 1111
+                registers[R7] = registers[R_PC];
+                uint16_t trap = (instr & 0x00FF);
+                trap = (uint16_t)trap; // ensuring it zero extends. 
+
+                switch (trap) {
+                    case TRAP_GETCHAR:
+                        registers[R0] = (uint16_t)getchar(); // so now it clears the high 8 bits
+                        update_flag(R0);
+                        // IN this case, the r0 is actually the 0th register, not the specified register like above. 
+                        break;
+                    case TRAP_OUT:
+                        putc((char)registers[R0], stdout); // use putc, with a integer mask of char in order to get the lower 8 bits. 
+                        fflush(stdout); // EMpty out stdout
+                        break;
+                    case TRAP_PUTS:
+                        uint16_t *ptr_address = memory + registers[R0];
+                        while (*ptr_address) { // so until it doesnt equal zero. 
+                            char char1 = *ptr_address; // one character per memory location
+                            putchar((char)char1);
+                            ptr_address++;
+
+                        }
+                        fflush(stdout);
+                        break;
+                    case TRAP_INPUT:
+                        printf("Input a character: ");
+                        char ch = getchar();
+                        putchar(ch);
+                        fflush(stdout);
+                        registers[R0] = (uint16_t)ch;
+                        update_flag(R0);
+                        break;
+                    case TRAP_PUTSP:
+                    uint16_t *ptr_addr = memory + registers[R0];
+                        while (*ptr_addr) { // so until it doesnt equal zero. Since it has 2 bytes, need to print out each.
+                            char char1 = (*ptr_addr) & 0xFF; // two characters per memory location. lsb byte written first. 
+                            putchar(char1);
+                            char char2 = (*ptr_addr) >> 8;
+                            if (char2) putchar(char1);
+                            ptr_addr++;
+                        }
+                        break;
+                    case TRAP_HALT:
+                        // it means the vm, not the whole program. 
+                        printf("Program stopped....\n");
+                        fflush(stdout);
+                        run_loop = 0;
+
+                        break;
+                }
+                registers[R_PC] = mem_read(trap); // dr not set so update_flag not called. 
                 break;
             case RES_OP: // 1101
             case RTI_OP: // 1000
