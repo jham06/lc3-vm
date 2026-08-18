@@ -10,13 +10,6 @@
 HANDLE hStdin = INVALID_HANDLE_VALUE;
 DWORD fdwMode, fdwOldMode;
 
-
-
-uint16_t check_key()
-{
-    return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
-}
-
 enum {
     TRAP_GETCHAR = 0x20, // get char from keyboard, not echoed to the terminal
     TRAP_OUT = 0x21, // output a char
@@ -204,41 +197,41 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 // Need to consider two cases: When bit 5 is 0/1. 
 
                 uint16_t bit5 = (instr >> 5) & 0x0001;
-                uint16_t dr = (instr >> 9) & 0x0007; 
+                uint16_t dr_add = (instr >> 9) & 0x0007; 
                 uint16_t sr1 = (instr >> 6) & 0x0007;
                 if (bit5 == 0) {
                     uint16_t sr2 = (instr & 0x0007);
-                    registers[dr] = registers[sr1] + registers[sr2];
+                    registers[dr_add] = registers[sr1] + registers[sr2];
                 } else {
                     int16_t imm5 = (instr & 0x001F);
                     imm5 = imm5 << 11; // sign_extend.
                     imm5 = imm5 >> 11;
-                    registers[dr] = imm5 + registers[sr1];
+                    registers[dr_add] = imm5 + registers[sr1];
                 }
 
-                update_flag(dr);
+                update_flag(dr_add);
                 break;
             case AND_OP: // 0101
-                uint16_t bit5 = (instr >> 5) & 0x0001;
-                uint16_t dr = (instr >> 9) & 0x0007; 
+                uint16_t bit5_and = (instr >> 5) & 0x0001;
+                uint16_t dr_and = (instr >> 9) & 0x0007; 
                 uint16_t sr1 = (instr >> 6) & 0x0007;
-                if (bit5 == 0) {
+                if (bit5_and == 0) {
                     uint16_t sr2 = (instr & 0x0007);
-                    registers[dr] = registers[sr1] & registers[sr2];
+                    registers[dr_and] = registers[sr1] & registers[sr2];
                 } else {
                     int16_t imm5 = (instr & 0x001F);
                     imm5 = imm5 << 11; // sign_extend.
                     imm5 = imm5 >> 11;
-                    registers[dr] = imm5 & registers[sr1];
+                    registers[dr_and] = imm5 & registers[sr1];
                 }
-                update_flag(dr);
+                update_flag(dr_and);
                 break;
             case NOT_OP: // 1001
-                uint16_t dr = (instr >> 9) & 0x0007; 
+                uint16_t dr_not = (instr >> 9) & 0x0007; 
                 uint16_t sr = (instr >> 6) & 0x0007;
 
-                registers[dr] = ~(registers[sr]);
-                update_flag(dr);
+                registers[dr_not] = ~(registers[sr]);
+                update_flag(dr_not);
                 break;
             case BR_OP: // 0000, need to test N, Z and P
                 uint16_t n = (instr >> 11) & 0x0001;
@@ -264,41 +257,41 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 }
                 break;
             case LD_OP: // 0010
-                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t dr_ld = (instr >> 9) & 0x0007;
                 uint16_t pc_offset = (instr & 0x01FF);
                 pc_offset = pc_offset << 7;
                 pc_offset = pc_offset >> 7;
 
-                registers[dr] = mem_read(registers[R_PC] + pc_offset); // use mem_read for now..
-                update_flag(dr);
+                registers[dr_ld] = mem_read(registers[R_PC] + pc_offset); // use mem_read for now..
+                update_flag(dr_ld);
                 break;
             case LDI_OP: // 1010
-                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t dr_ldi = (instr >> 9) & 0x0007;
                 uint16_t pc_offset = (instr & 0x01FF);
                 pc_offset = pc_offset << 7;
                 pc_offset = pc_offset >> 7;
 
-                registers[dr] = mem_read(mem_read(registers[R_PC] + pc_offset)); // In this case, store the address. 
-                update_flag(dr);
+                registers[dr_ldi] = mem_read(mem_read(registers[R_PC] + pc_offset)); // In this case, store the address. 
+                update_flag(dr_ldi);
                 break;
             case LDR_OP: // 0110
-                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t dr_ldr = (instr >> 9) & 0x0007;
                 uint16_t base_r = (instr >> 6) & 0x0007;
                 uint16_t offset6 = (instr & 0x003F);
                 offset6 = offset6 << 10;
                 offset6 = offset6 >> 10;
 
-                registers[dr] = mem_read(registers[base_r] + offset6); // use mem_read for now..
-                update_flag(dr);
+                registers[dr_ldr] = mem_read(registers[base_r] + offset6); // use mem_read for now..
+                update_flag(dr_ldr);
                 break;
             case LEA_OP: // 1110
-                uint16_t dr = (instr >> 9) & 0x0007;
+                uint16_t dr_lea = (instr >> 9) & 0x0007;
                 uint16_t pc_offset = (instr & 0x01FF);
                 pc_offset = pc_offset << 7;
                 pc_offset = pc_offset >> 7;
 
-                registers[dr] = (registers[R_PC] + pc_offset); // In this case, store the address. 
-                update_flag(dr);
+                registers[dr_lea] = (registers[R_PC] + pc_offset); // In this case, store the address. 
+                update_flag(dr_lea);
                 break;
             case ST_OP: // 0011
                 uint16_t sr = (instr >> 9) & 0x0007;
