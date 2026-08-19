@@ -185,7 +185,6 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
 
 
     while (run_loop) { 
-        printf("Hello\n");
         uint16_t instr = mem_read(registers[R_PC]);
 
         registers[R_PC]++;
@@ -238,7 +237,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 uint16_t n = (instr >> 11) & 0x0001;
                 uint16_t z = (instr >> 10) & 0x0001;
                 uint16_t p = (instr >> 9) & 0x0001;
-                uint16_t pc_offset_br = (instr & 0x01FF);
+                int16_t pc_offset_br = (instr & 0x01FF); // shouldve been an signed int. 
                 pc_offset_br = pc_offset_br << 7;
                 pc_offset_br = pc_offset_br >> 7;
 
@@ -256,7 +255,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
             case JSR_OP: // 0100
                 registers[R7] = registers[R_PC];
                 uint16_t bit11 = (instr >> 11) & 0x0001;
-                uint16_t offset = (instr & 0x07FF);
+                int16_t offset = (instr & 0x07FF);
                 offset = offset << 5;
                 offset = offset >> 5;
                 if (bit11 == 1) {
@@ -265,7 +264,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 break;
             case LD_OP: // 0010
                 uint16_t dr_ld = (instr >> 9) & 0x0007;
-                uint16_t pc_offset_ld = (instr & 0x01FF);
+                int16_t pc_offset_ld = (instr & 0x01FF);
                 pc_offset_ld = pc_offset_ld << 7;
                 pc_offset_ld = pc_offset_ld >> 7;
 
@@ -274,7 +273,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 break;
             case LDI_OP: // 1010
                 uint16_t dr_ldi = (instr >> 9) & 0x0007;
-                uint16_t pc_offset_ldi = (instr & 0x01FF);
+                int16_t pc_offset_ldi = (instr & 0x01FF);
                 pc_offset_ldi = pc_offset_ldi << 7;
                 pc_offset_ldi = pc_offset_ldi >> 7;
 
@@ -284,7 +283,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
             case LDR_OP: // 0110
                 uint16_t dr_ldr = (instr >> 9) & 0x0007;
                 uint16_t base_r = (instr >> 6) & 0x0007;
-                uint16_t offset6 = (instr & 0x003F);
+                int16_t offset6 = (instr & 0x003F);
                 offset6 = offset6 << 10;
                 offset6 = offset6 >> 10;
 
@@ -293,7 +292,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 break;
             case LEA_OP: // 1110
                 uint16_t dr_lea = (instr >> 9) & 0x0007;
-                uint16_t pc_offset_lea = (instr & 0x01FF);
+                int16_t pc_offset_lea = (instr & 0x01FF);
                 pc_offset_lea = pc_offset_lea << 7;
                 pc_offset_lea = pc_offset_lea >> 7;
 
@@ -302,7 +301,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 break;
             case ST_OP: // 0011
                 uint16_t sr_st = (instr >> 9) & 0x0007;
-                uint16_t pc_offset_st = (instr & 0x01FF);
+                int16_t pc_offset_st = (instr & 0x01FF);
                 pc_offset_st = pc_offset_st << 7;
                 pc_offset_st = pc_offset_st >> 7;
 
@@ -312,7 +311,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 break;
             case STI_OP: // 1011
                 uint16_t sr_sti = (instr >> 9) & 0x0007;
-                uint16_t pc_offset_sti = (instr & 0x01FF);
+                int16_t pc_offset_sti = (instr & 0x01FF);
                 pc_offset_sti = pc_offset_sti << 7;
                 pc_offset_sti = pc_offset_sti >> 7;
 
@@ -323,7 +322,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
             case STR_OP: // 0111
                 uint16_t sr_str = (instr >> 9) & 0x0007;
                 uint16_t baseR = (instr >> 6) & 0x0007;
-                uint16_t pc_offset_str = (instr & 0x003F);
+                int16_t pc_offset_str = (instr & 0x003F);
                 pc_offset_str = pc_offset_str << 10;
                 pc_offset_str = pc_offset_str >> 10;
 
