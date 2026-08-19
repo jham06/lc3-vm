@@ -98,7 +98,7 @@ void handle_interrupt(int signal)
 
 uint16_t sign_extend(uint16_t x, int bit_count)
 {
-    if ((x >> (bit_count - 1)) & 1) {
+    if ((x >> (bit_count - 1)) & 1) { // account for signed integer overflow..
         x |= (0xFFFF << bit_count);
     }
     return x;
