@@ -185,6 +185,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
 
 
     while (run_loop) { 
+        printf("Hello\n");
         uint16_t instr = mem_read(registers[R_PC]);
 
         registers[R_PC]++;
@@ -237,10 +238,16 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 uint16_t n = (instr >> 11) & 0x0001;
                 uint16_t z = (instr >> 10) & 0x0001;
                 uint16_t p = (instr >> 9) & 0x0001;
+                uint16_t pc_offset_br = (instr & 0x01FF);
+                pc_offset_br = pc_offset_br << 7;
+                pc_offset_br = pc_offset_br >> 7;
 
                  // LETS come back to this.
 
-                
+                 if ((n && FL_NEG) | (z && FL_ZRO) | (p && FL_POS)) {
+                    registers[R_PC] = registers[R_PC] + pc_offset_br;
+                 }
+
                 break;
             case JMP_OP: // 1100
                 uint16_t base_reg = (instr >> 6) & 0x0003;
@@ -375,7 +382,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
 
                         break;
                 }
-                registers[R_PC] = mem_read(trap); // dr not set so update_flag not called. 
+                //registers[R_PC] = mem_read(trap); // dr not set so update_flag not called. 
                 break;
             case RES_OP: // 1101, do nothing
             case RTI_OP: // 1000, do nothing

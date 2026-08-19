@@ -1,3 +1,5 @@
+# Ensure convenience for the user. 
+
 all: 
 	gcc lc3vm.c -o lc3
 
