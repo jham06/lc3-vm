@@ -12,7 +12,7 @@ Building this was fun since due to my keen knowledge on low level architecture b
 - Run `make` to compile the `lc3vm.c` file.
 - Run `./lc3 roms/FILENAME.obj` to run games!
 
-**NOTE**, MSYS2 MINGW64 (gcc) is a requirement.
+**NOTE**! MSYS2 MINGW64 (gcc) is a requirement.
 
 ## Source: 
 - [LC-3 VM Tutorial](https://www.jmeiners.com/lc3-vm/#what-is-a-virtual-machine-)
