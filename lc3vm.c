@@ -243,7 +243,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
 
                  // LETS come back to this.
 
-                 if ((n && FL_NEG) | (z && FL_ZRO) | (p && FL_POS)) {
+                 if ((n && FL_NEG) || (z && FL_ZRO) || (p && FL_POS)) {
                     registers[R_PC] = registers[R_PC] + pc_offset_br;
                  }
 
