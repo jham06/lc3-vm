@@ -85,7 +85,7 @@ void restore_input_buffering()
 
 uint16_t check_key()
 {
-    return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
+    return WaitForSingleObject(hStdin, 0) == WAIT_OBJECT_0 && _kbhit();
 }
 
 
@@ -96,7 +96,13 @@ void handle_interrupt(int signal)
     exit(-2);
 }
 
-
+uint16_t sign_extend(uint16_t x, int bit_count)
+{
+    if ((x >> (bit_count - 1)) & 1) {
+        x |= (0xFFFF << bit_count);
+    }
+    return x;
+}
 uint16_t swap16_bits(uint16_t value) {
     uint16_t swapped = (value >> 8) | (value << 8); // no need to mask. 
     return swapped;
@@ -144,8 +150,10 @@ int read_image (const char* image_path) { // needs to read a string, so apply a 
 uint16_t mem_read (uint16_t addr){
     if (addr == MR_KBSR) {
         if (check_key()) {
+        //if (_kbhit()) {
             memory[MR_KBSR] = (1 << 15);
             memory[MR_KBDR] = getchar();
+            //memory[MR_KBDR] = getchar(); whyyyyy
         } else {
             memory[MR_KBSR] = 0;
         }
@@ -203,10 +211,8 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                     uint16_t sr2 = (instr & 0x0007);
                     registers[dr_add] = registers[sr1_add] + registers[sr2];
                 } else {
-                    int16_t imm5 = (instr & 0x001F);
-                    imm5 = imm5 << 11; // sign_extend.
-                    imm5 = imm5 >> 11;
-                    registers[dr_add] = imm5 + registers[sr1_add];
+                    uint16_t imm5_add = sign_extend(instr & 0x1F, 5);
+                    registers[dr_add] = imm5_add + registers[sr1_add];
                 }
 
                 update_flag(dr_add);
@@ -219,10 +225,11 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                     uint16_t sr2 = (instr & 0x0007);
                     registers[dr_and] = registers[sr1_and] & registers[sr2];
                 } else {
-                    int16_t imm5 = (instr & 0x001F);
-                    imm5 = imm5 << 11; // sign_extend.
-                    imm5 = imm5 >> 11;
-                    registers[dr_and] = imm5 & registers[sr1_and];
+                    uint16_t imm5_and = sign_extend(instr & 0x1F, 5);
+                    //int16_t imm5_and = (instr & 0x001F);
+                    //imm5 = imm5 << 11; // sign_extend.
+                    //imm5 = imm5 >> 11;
+                    registers[dr_and] = imm5_and & registers[sr1_and];
                 }
                 update_flag(dr_and);
                 break;
@@ -234,48 +241,60 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 update_flag(dr_not);
                 break;
             case BR_OP: // 0000, need to test N, Z and P
-                uint16_t n = (instr >> 11) & 0x0001;
-                uint16_t z = (instr >> 10) & 0x0001;
-                uint16_t p = (instr >> 9) & 0x0001;
-                int16_t pc_offset_br = (instr & 0x01FF); // shouldve been an signed int. 
-                pc_offset_br = pc_offset_br << 7;
-                pc_offset_br = pc_offset_br >> 7;
+                //uint16_t n = (instr >> 11) & 0x0001;
+                //uint16_t z = (instr >> 10) & 0x0001;
+                //uint16_t p = (instr >> 9) & 0x0001;
+                uint16_t cond = (instr >> 9) & 0x7;
+                uint16_t pc_offset_br = sign_extend(instr & 0x1FF, 9);
+                //int16_t pc_offset_br = (instr & 0x01FF); // shouldve been an signed int. 
+                //pc_offset_br = pc_offset_br << 7;
+                //pc_offset_br = pc_offset_br >> 7;
 
                  // LETS come back to this.
 
-                 if ((n && FL_NEG) || (z && FL_ZRO) || (p && FL_POS)) {
+                /*if ((n && FL_NEG) || (z && FL_ZRO) || (p && FL_POS)) {
                     registers[R_PC] = registers[R_PC] + pc_offset_br;
                  }
+                */
 
+                 if (cond & registers[R_COND]) {
+                    registers[R_PC] += pc_offset_br;
+                }
                 break;
             case JMP_OP: // 1100
-                uint16_t base_reg = (instr >> 6) & 0x0003;
+                uint16_t base_reg = (instr >> 6) & 0x7;
                 registers[R_PC] = registers[base_reg];
                 break;
             case JSR_OP: // 0100
                 registers[R7] = registers[R_PC];
                 uint16_t bit11 = (instr >> 11) & 0x0001;
-                int16_t offset = (instr & 0x07FF);
-                offset = offset << 5;
-                offset = offset >> 5;
+                uint16_t offset = sign_extend(instr & 0x7FF, 11);
+                //int16_t offset = (instr & 0x07FF);
+                //offset = offset << 5;
+                //offset = offset >> 5;
                 if (bit11 == 1) {
                     registers[R_PC] = registers[R_PC] + offset;
+                } else {
+                    uint16_t r1 = (instr >> 6) & 0x7;
+                    registers[R_PC] = registers[r1]; // JSRR
                 }
                 break;
             case LD_OP: // 0010
                 uint16_t dr_ld = (instr >> 9) & 0x0007;
-                int16_t pc_offset_ld = (instr & 0x01FF);
-                pc_offset_ld = pc_offset_ld << 7;
-                pc_offset_ld = pc_offset_ld >> 7;
+                uint16_t pc_offset_ld = sign_extend(instr & 0x1FF, 9);
+                //int16_t pc_offset_ld = (instr & 0x01FF);
+               // pc_offset_ld = pc_offset_ld << 7;
+                //pc_offset_ld = pc_offset_ld >> 7;
 
                 registers[dr_ld] = mem_read(registers[R_PC] + pc_offset_ld); // use mem_read for now..
                 update_flag(dr_ld);
                 break;
             case LDI_OP: // 1010
                 uint16_t dr_ldi = (instr >> 9) & 0x0007;
-                int16_t pc_offset_ldi = (instr & 0x01FF);
-                pc_offset_ldi = pc_offset_ldi << 7;
-                pc_offset_ldi = pc_offset_ldi >> 7;
+                uint16_t pc_offset_ldi = sign_extend(instr & 0x1FF, 9);
+                //int16_t pc_offset_ldi = (instr & 0x01FF);
+                //pc_offset_ldi = pc_offset_ldi << 7;
+                //pc_offset_ldi = pc_offset_ldi >> 7;
 
                 registers[dr_ldi] = mem_read(mem_read(registers[R_PC] + pc_offset_ldi)); // In this case, store the address. 
                 update_flag(dr_ldi);
@@ -283,27 +302,30 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
             case LDR_OP: // 0110
                 uint16_t dr_ldr = (instr >> 9) & 0x0007;
                 uint16_t base_r = (instr >> 6) & 0x0007;
-                int16_t offset6 = (instr & 0x003F);
-                offset6 = offset6 << 10;
-                offset6 = offset6 >> 10;
+                uint16_t offset6 = sign_extend(instr & 0x3F, 6);
+                //int16_t offset6 = (instr & 0x003F);
+                //offset6 = offset6 << 10;
+                //offset6 = offset6 >> 10;
 
                 registers[dr_ldr] = mem_read(registers[base_r] + offset6); // use mem_read for now..
                 update_flag(dr_ldr);
                 break;
             case LEA_OP: // 1110
                 uint16_t dr_lea = (instr >> 9) & 0x0007;
-                int16_t pc_offset_lea = (instr & 0x01FF);
-                pc_offset_lea = pc_offset_lea << 7;
-                pc_offset_lea = pc_offset_lea >> 7;
+                uint16_t pc_offset_lea = sign_extend(instr & 0x1FF, 9);
+                //int16_t pc_offset_lea = (instr & 0x01FF);
+                //pc_offset_lea = pc_offset_lea << 7;
+                //pc_offset_lea = pc_offset_lea >> 7;
 
                 registers[dr_lea] = (registers[R_PC] + pc_offset_lea); // In this case, store the address. 
                 update_flag(dr_lea);
                 break;
             case ST_OP: // 0011
                 uint16_t sr_st = (instr >> 9) & 0x0007;
-                int16_t pc_offset_st = (instr & 0x01FF);
-                pc_offset_st = pc_offset_st << 7;
-                pc_offset_st = pc_offset_st >> 7;
+                uint16_t pc_offset_st = sign_extend(instr & 0x1FF, 9);
+                //int16_t pc_offset_st = (instr & 0x01FF);
+                //pc_offset_st = pc_offset_st << 7;
+                //pc_offset_st = pc_offset_st >> 7;
 
                 uint16_t value_st = registers[sr_st];
                 
@@ -311,9 +333,10 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                 break;
             case STI_OP: // 1011
                 uint16_t sr_sti = (instr >> 9) & 0x0007;
-                int16_t pc_offset_sti = (instr & 0x01FF);
-                pc_offset_sti = pc_offset_sti << 7;
-                pc_offset_sti = pc_offset_sti >> 7;
+                uint16_t pc_offset_sti = sign_extend(instr & 0x1FF, 9);
+                //int16_t pc_offset_sti = (instr & 0x01FF);
+                //pc_offset_sti = pc_offset_sti << 7;
+                //pc_offset_sti = pc_offset_sti >> 7;
 
                 uint16_t value_sti = registers[sr_sti];
                 
@@ -322,9 +345,10 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
             case STR_OP: // 0111
                 uint16_t sr_str = (instr >> 9) & 0x0007;
                 uint16_t baseR = (instr >> 6) & 0x0007;
-                int16_t pc_offset_str = (instr & 0x003F);
-                pc_offset_str = pc_offset_str << 10;
-                pc_offset_str = pc_offset_str >> 10;
+                uint16_t pc_offset_str = sign_extend(instr & 0x3F, 6);
+                //int16_t pc_offset_str = (instr & 0x003F);
+                //pc_offset_str = pc_offset_str << 10;
+                //pc_offset_str = pc_offset_str >> 10;
 
                 uint16_t value_str = registers[sr_str];
                 
@@ -337,8 +361,9 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
 
                 switch (trap) {
                     case TRAP_GETCHAR:
-                        //registers[R0] = (uint16_t)_getch();
-                        registers[R0] = (uint16_t)getchar(); // so now it clears the high 8 bits
+                        registers[R0] = (uint16_t)_getch();
+                        printf("\nGot char: %d\n", registers[R0]); // debug
+                        //registers[R0] = (uint16_t)getchar(); // so now it clears the high 8 bits
                         update_flag(R0);
                         // IN this case, the r0 is actually the 0th register, not the specified register like above. 
                         break;
@@ -358,8 +383,8 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                         break;
                     case TRAP_INPUT:
                         printf("Input a character: ");
-                        //char ch = _getch();
-                        char ch = getchar();
+                        char ch = _getch();
+                        //char ch = getchar();
                         putchar(ch);
                         fflush(stdout);
                         registers[R0] = (uint16_t)ch;
