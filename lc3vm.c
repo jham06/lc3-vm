@@ -106,7 +106,7 @@ uint16_t swap16_bits(uint16_t value) {
 void update_flag (uint16_t r) { // any time a value is written into the register, need to update flags to indicate its sign. 
     if (registers[r] == 0) {
         registers[R_COND] = FL_ZRO;
-    } else if (registers[r] >> 1) { // If 15th bit is set i.e. its negative..
+    } else if (registers[r] >> 15) { // If 15th bit is set i.e. its negative..
         registers[R_COND] = FL_NEG;
     } else {
         registers[R_COND] = FL_POS;
@@ -337,6 +337,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
 
                 switch (trap) {
                     case TRAP_GETCHAR:
+                        //registers[R0] = (uint16_t)_getch();
                         registers[R0] = (uint16_t)getchar(); // so now it clears the high 8 bits
                         update_flag(R0);
                         // IN this case, the r0 is actually the 0th register, not the specified register like above. 
@@ -357,6 +358,7 @@ int main (int argc, const char *argv[]) {// Why do we use a const?
                         break;
                     case TRAP_INPUT:
                         printf("Input a character: ");
+                        //char ch = _getch();
                         char ch = getchar();
                         putchar(ch);
                         fflush(stdout);
