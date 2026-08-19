@@ -1,0 +1,5 @@
+all: 
+	gcc lc3vm.c -o lc3
+
+clean:
+	del lc3.exe
